@@ -44,10 +44,29 @@ single_cluster_graph = function(MtoM, cumsum, max_cum, lower_band, dd, n){
                  fillcolor = 'rgba(220, 220, 220, 0.9')
   
   return(p)
-
 }
 
+# Subcluster main equity graph 
 
-
+sub_main_equity_graph <- function(df){
+  
+  p <- plot_ly()
+  
+  for (i in 2:ncol(df)){
+    
+    x = c(1:nrow(df))
+    y = colnames(df)[i]
+    p <- add_trace(p,
+                   x = x,
+                   y = df[[y]],
+                   type = 'scatter',
+                   mode = 'lines',
+                   name = y)
+  }
+  
+  p <- p %>% layout(title='Main Equity Graph')
+  
+  return(p)
+}
 
 

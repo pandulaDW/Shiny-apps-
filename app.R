@@ -68,10 +68,31 @@ ui <- fluidPage(
       tabPanel(title = 'Graphs',
           plotlyOutput(outputId = 'equity_graph'),
           tags$hr(),
+      fluidRow(
+        column(3, 
           selectInput(inputId = 'cluster_select', label = 'Select Clusters', 
-                      choices = c('Cluster 1' = 1)),
-          plotlyOutput(outputId = 'single_cluster_graph')
-      )
+                      choices = c('Cluster 1' = 1))),
+        column(3, 
+          numericInput("c_drawdown", label = "Startegy drawdown limit", value = 1)), 
+        column(2, tags$br(), 
+          actionButton(inputId = 'single_submit', label = 'Update')),
+        column(4,
+          selectInput(inputId = 'update_dw', label = 'Maximum Drawdowns', 
+                      choices = c()))
+      ),
+        plotlyOutput(outputId = 'single_cluster_graph'),
+          tags$hr(),
+      fluidRow(
+        column(5, offset = 5,
+          actionButton(inputId = 'subcluster_init', label = h4('Sub-cluster')))
+      ),
+          tags$hr()
+      ),
+      tabPanel(title = 'Sub-cluster',
+           tableOutput(outputId = 'subcluster_table'),
+           tags$hr(),
+           plotlyOutput(outputId = 'sub_graph_equity'),
+           plotlyOutput(outputId = 'sub_graph_single'))
     )
   )
  )
@@ -110,9 +131,11 @@ server <- function(input, output, session){
     clusters <- cluster_function(df, n)
     
     write.csv(clusters, file = 'final.csv')
-    MtoM = create_MtoM()
+    final = read.csv('final.csv')
+    
+    MtoM = create_MtoM(df, final)
     cumsum = create_cumsum(MtoM)
-    table = arrange_cluster()
+    table = arrange_cluster(final)
     
     output$cluster_table <- renderTable({ table })
     
@@ -132,17 +155,52 @@ server <- function(input, output, session){
                       choices = c_full,
                       selected = head(c_full, 1))
     
+    # Initial run for the cluster 1
+    output$single_cluster_graph <- renderPlotly({ 
+      single_cluster_graph(MtoM, cumsum, max_cum, lower_band, dd, n = 1)
+  })
+    
+    dw_cluster = apply(dd[, -1], 2, min)
+    dw_cluster = paste('Cluster_', 1:n, ' = (', round(unname(dw_cluster[1:n]),2), ')')
+    
+    # Updating the maximum drawdowns 
+    updateSelectInput(session, inputId = 'update_dw', label = 'some label',
+                      choices = dw_cluster, selected = head(dw_cluster, 1))
+    
+    # Updating the graph reactively 
+  single_graph <- observeEvent(input$single_submit, {  
+    
     c_select = as.integer(input$cluster_select)
+    c_drawdown = as.integer(input$c_drawdown)
+    lower_band = create_lowerband(cumsum, max_cum, dd, max_dw = c_drawdown, n = c_select)
     
     output$single_cluster_graph <- renderPlotly({ 
           single_cluster_graph(MtoM, cumsum, max_cum, lower_band, dd, n = c_select)
    })
+  })
+  
+  # Populate the subcluster tab 
+  subclusters <- observeEvent(input$subcluster_init, {
+    
+    c_select = as.integer(input$cluster_select)
+    selected = final %>% filter(clusters == c_select)
+    cluster_sub = df[(selected[['X']])]
+    cluster_sub = cbind(df[,1], cluster_sub)
+    clusters <- cluster_function(cluster_sub, 4)
+    
+    write.csv(clusters, file = 'final_sub.csv')
+    final_sub = read.csv('final_sub.csv')
+    sub_table = arrange_cluster(final_sub)
+    
+    output$subcluster_table = renderTable({ sub_table })
+    
+    # Creating the graphs again for the subclusters 
+    MtoM = create_MtoM(cluster_sub, final_sub)
+    cumsum = create_cumsum(MtoM)
+    output$sub_graph_equity <- renderPlotly({ main_equity_graph(cumsum) })
+  })
  })
 }
-
+#  
 # Create Shiny app ----
 shinyApp(ui, server)
-
-
-
-

@@ -1,6 +1,7 @@
-arrange_cluster = function() {
+# setwd('C:/Users/Pandula/Desktop/Dash apps/Shiny Apps/clustering-app')
+
+arrange_cluster = function(df) {
   
-  df = read.csv('final.csv')
   df['y'] = seq(1:nrow(df))
   tidy <- spread(df, key = clusters, value = X, convert = TRUE, fill = NA)
   
@@ -15,14 +16,12 @@ arrange_cluster = function() {
   tidy <- sapply(tidy, as.character) 
   tidy[is.na(tidy)] <- ""
   tidy <- as.data.frame(tidy)
+  tidy <- tidy[!apply(tidy == "", 1, all), ]
   return(tidy)
 
 }
 
-create_MtoM = function() {
-  
-  df1 = read.csv('df.csv')
-  df2 = read.csv('final.csv', stringsAsFactors = FALSE)
+create_MtoM = function(df1, df2) {
   
   t_df <- as.data.frame(t(df1[,-1]))
   colnames(t_df) <- df1[, 1]
@@ -59,9 +58,11 @@ create_DD = function(cumsum, max_cum){
   return(DD)
 }
 
-create_lowerband = function(cumsum, max_cum, DD){
+create_lowerband = function(cumsum, max_cum, DD, n, max_dw=1){
   lower_band = max_cum
   max_drawdowns = apply(DD[, -1], 2, min)
+  
+  if(max_dw == 1){
   
   for(j in (1:(ncol(cumsum)-1))){
     for(i in (1:nrow(cumsum))){
@@ -74,8 +75,21 @@ create_lowerband = function(cumsum, max_cum, DD){
     }
    }
   }
+}
+  else{
+    for(i in (1:nrow(cumsum))){
+        
+        if(lower_band[,n+1][i] > 0){
+          lower_band[,n+1][i] = lower_band[,n+1][i] + max_dw
+        }
+        else{
+          lower_band[,n+1][i] = 0
+        }
+      }
+    }
   return(lower_band)
 }
+
 
 
 
