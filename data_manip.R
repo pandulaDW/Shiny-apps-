@@ -21,6 +21,10 @@ arrange_cluster = function(df) {
 
 }
 
+# df1 = read.csv('cluster_sub.csv')
+# df1 = df1[, 2:ncol(df1)]
+# df2 = read.csv('final_sub.csv')
+
 create_MtoM = function(df1, df2) {
   
   t_df <- as.data.frame(t(df1[,-1]))

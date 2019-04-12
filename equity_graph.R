@@ -48,23 +48,41 @@ single_cluster_graph = function(MtoM, cumsum, max_cum, lower_band, dd, n){
 
 # Subcluster main equity graph 
 
-sub_main_equity_graph <- function(df){
+sub_main_equity_graph <- function(cumsum_main, cumsum_sub, n){
   
   p <- plot_ly()
   
-  for (i in 2:ncol(df)){
+  cumsum_main = cumsum_main[, -(n+1)]
+  
+  # Main clusters traces 
+  for (i in 2:ncol(cumsum_main)){
     
-    x = c(1:nrow(df))
-    y = colnames(df)[i]
+    x = c(1:nrow(cumsum_main))
+    y = colnames(cumsum_main)[i]
     p <- add_trace(p,
                    x = x,
-                   y = df[[y]],
+                   y = cumsum_main[[y]],
                    type = 'scatter',
                    mode = 'lines',
                    name = y)
   }
   
-  p <- p %>% layout(title='Main Equity Graph')
+  sub_names = paste("Sub", colnames(cumsum_sub), sep = "_")
+  
+  # Sub clusters traces 
+  for (i in 2:ncol(cumsum_sub)){
+    
+    x = c(1:nrow(cumsum_sub))
+    y = colnames(cumsum_sub)[i]
+    p <- add_trace(p,
+                   x = x,
+                   y = cumsum_sub[[y]],
+                   type = 'scatter',
+                   mode = 'lines',
+                   name = sub_names[i])
+  }
+  
+  p <- p %>% layout(title='Subcluster Equity Graph')
   
   return(p)
 }
