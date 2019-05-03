@@ -21,10 +21,6 @@ arrange_cluster = function(df) {
 
 }
 
-# df1 = read.csv('cluster_sub.csv')
-# df1 = df1[, 2:ncol(df1)]
-# df2 = read.csv('final_sub.csv')
-
 create_MtoM = function(df1, df2) {
   
   t_df <- as.data.frame(t(df1[,-1]))
@@ -94,6 +90,23 @@ create_lowerband = function(cumsum, max_cum, DD, n, max_dw=1){
   return(lower_band)
 }
 
-
+create_lowerband_final = function(cumsum, max_cum, DD, max_dw=1) {
+  lower_band = max_cum
+  max_drawdown = apply(DD, 2, min)
+  
+  if(max_dw == 1){
+    
+    for(i in (1:nrow(cumsum))){
+        
+        if(lower_band[, 1][i] > 0){
+          lower_band[, 1][i] = lower_band[, 1][i] + max_drawdown
+        }
+        else{
+          lower_band[, 1][i] = 0
+      }
+    }
+  }
+  return(lower_band)
+}
 
 

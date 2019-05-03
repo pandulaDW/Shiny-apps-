@@ -9,6 +9,9 @@ library(reshape2)
 library(ggplot2)
 library(plotly)
 library(lubridate)
+library(shinythemes)
+library(shinyjs)
+library(shinydashboard)
 
 # Script files ----------
 source("r_script.R")
@@ -16,15 +19,18 @@ source('data_manip.R')
 source("equity_graph.R")
 
 # Define UI for data upload app ----
-ui <- fluidPage(
+
+ui <- fluidPage(theme = shinytheme('flatly'),
+    navbarPage(title = 'Clustering App'),
   
-  titlePanel('Clustering App'),
+  useShinyjs(), 
   
   sidebarLayout(
     
     sidebarPanel(
       
       # Date range
+      div(id = 'hide_date_stuff',
       dateRangeInput(inputId = 'select_date', label = 'Select the date range', 
                      start = (ymd(Sys.Date()) - years(1)), end = (ymd(Sys.Date()) - days(1)),
                      max = (ymd(Sys.Date()) - days(1)), format = "yyyy/mm/dd", separator = 'to'),
@@ -33,10 +39,10 @@ ui <- fluidPage(
       tags$br(),
       actionButton(inputId = 'confirm_range', label = 'Confirm data range'),
       
-      tags$hr(),
-      
+      tags$hr()),
       # Input widget 
-      fileInput(inputId = 'upload',label = 'Choose CSV File',
+      hidden(div(id = 'hide_before_date',
+        fileInput(inputId = 'upload',label = 'Choose CSV File',
                 accept = c("text/csv",
                 "text/comma-separated-values,text/plain",
                 ".csv")),
@@ -45,13 +51,15 @@ ui <- fluidPage(
       tags$hr(),
       
       # Input : Select number of rows to display 
-      radioButtons(inputId = 'display', label = 'Display',
-                   choices = c(Head = 'head',
-                               All = 'all'),
-                   selected = 'head'),
+      radioButtons(inputId = 'upload_method', label = 'Choose your upload method',
+                   choices = c('Single file upload' = 'single_file',
+                               'Bulk file upload' = 'bulk_file'),
+                   selected = 'single_file'))),
       
       # Horizontal line 
       tags$hr(),
+      
+      hidden(div(id = 'hide_shit',
       
       # Choose the number of clusters
        selectInput(inputId = 'cluster_number', label = 'Enter the number of clusters',
@@ -71,12 +79,25 @@ ui <- fluidPage(
       tags$hr(), 
       
       actionButton(inputId = 'output_init', label = 'Proceed')
-    ),
+    ))),
     mainPanel(
       
       tabsetPanel(id = 'main_tabset',
         tabPanel(title = 'Data', value = 'data_panel',
-          tableOutput(outputId = 'initial_content'),
+         hidden(fluidRow(id = 'hide_input_row',
+           column(3, div(style = "margin-top:8%", 
+                         actionButton(inputId = 'finalize', label = 'Confirm Data'))),
+            column(2, offset = 4,
+                   selectInput(inputId = 'select_remove', label = 'Select to remove',
+                               multiple = TRUE, choices = c())),
+            div(style = "margin-top:2%", 
+                column(3, actionButton(inputId = 'remove', label = 'Remove')
+          )))),
+         div(style="overflow-y:scroll; max-height: 40vh", tableOutput(outputId = 'initial_content')),
+          tags$hr(),
+          div(id= 'hide_text_remove', verbatimTextOutput(outputId = 'show_remove'),
+            hidden(helpText(id = 'help_text', "The table updates will be visible after adding a 
+                                            new column or after confirming the data"))),
           tableOutput(outputId = 'cluster_table')),
       tabPanel(title = 'Graphs', value = 'graph_panel',
           plotlyOutput(outputId = 'equity_graph'),
@@ -120,7 +141,13 @@ ui <- fluidPage(
         plotlyOutput(outputId = 'sub_graph_single')
       ),
       tabPanel(title = 'Output', value = 'output_tab_panel', 
-               downloadButton(outputId = 'download_cluster', label = 'Download Cluster Data'))
+               tags$h4("Download the master cluster file from here"),
+               div(style = "margin-top:1%", 
+                   downloadButton(outputId = 'download_cluster', label = 'Download Cluster Data')),
+               # tags$h4("Final output graph"),
+               tableOutput(outputId = 'check'),
+               plotlyOutput(outputId = 'final_output_graph'),
+               plotlyOutput(outputId = 'seperate_equity_graph'))
     )
   )
  )
@@ -143,6 +170,10 @@ server <- function(input, output, session){
     
     data <- as.data.frame(master_seq)
     write.csv(data, file = 'data_file.csv', row.names = FALSE)
+    show(id = 'hide_before_date', anim = TRUE, animType = 'fade', time = 0.6)
+    show(id = 'hide_input_row', anim = TRUE, animType = 'fade', time = 0.6)
+    hide(id = 'hide_date_stuff')
+    
   })
   
  output$initial_content <- renderTable({
@@ -153,10 +184,9 @@ server <- function(input, output, session){
    master_seq <- sapply(master_seq, as.character, USE.NAMES = FALSE)
    
    # Ensure that file is uploaded before proceding 
-   
-   
+  if (input$upload_method == 'single_file'){
    if (is.null(input$upload)){
-      return ()
+      return(NULL)
    } else {
        df <- read.csv(input$upload$datapath, header = TRUE)
        df[,1] =  as.Date(df[, 1], format = '%m/%d/%Y')
@@ -165,24 +195,58 @@ server <- function(input, output, session){
        data <- read.csv('data_file.csv')
        df[, 1] <- NULL 
        data <- cbind(data, df)
+       updateSelectInput(session, inputId = 'select_remove', label = 'some label',
+                         choices = colnames(data)[2:ncol(data)])
        write.csv(data, file = 'data_file.csv', row.names = FALSE)
-         if (input$display == 'head'){
-            return(head(data))  
-         } else {
-           return(data)    
-         }
+       return(data)  
   } else {
-       return(paste('Try again'))
+      return(paste('There seems to be an issue with the file you have just uploaded\n, 
+                   please check if the timestamps match with the master sequence'))
      }
    }
+  } else {
+    if (is.null(input$upload))
+      return(NULL)
+    else {
+      df <- read.csv(input$upload$datapath, header = TRUE)
+      df[, 1] <- NULL
+      data <- read.csv('data_file.csv')
+      data <- cbind(data, df)
+      updateSelectInput(session, inputId = 'select_remove', label = 'some label',
+                        choices = colnames(data)[2:ncol(data)])
+      write.csv(data, file = 'data_file.csv', row.names = FALSE)
+      return(data)  
+  }}
+})
+ 
+ remove_col <- observeEvent(input$remove, {
+   data <- read.csv('data_file.csv')
+   data[input$select_remove] = list(NULL)
+   write.csv(data, file = 'data_file.csv', row.names = FALSE)
+   names_add = paste('You have removed', 
+                     paste(input$select_remove, collapse = ', '))
+   show(id = 'help_text')
+   output$show_remove = renderText( names_add )
+   
+ })
+
+ 
+ # Finalizing the dataset for the elements to be displayed
+ finalise <- observeEvent(input$finalize, {
+   
+   req('data_file.csv')
+   df <- read.csv('data_file.csv')
+   
+   hide(id = 'hide_text_remove')
+   
+   output$initial_content <- renderTable({
+    return(head(df))   
 })
    
-  # Running the clustering function when the button clicks
+   show(id = 'hide_shit', anim = TRUE, animType = 'fade', time = 0.5)
+   
+ # Running the clustering function when the button clicks
   cluster_df <- observeEvent(input$submit_init, {
-    
-    req('data_file.csv')
-    
-    df <- read.csv('data_file.csv')
     
     n = as.integer(input$cluster_number)
     clusters <- cluster_function(df, n)
@@ -324,7 +388,9 @@ server <- function(input, output, session){
     final = read.csv('final.csv')
     
     final_output_main = final[final$clusters %in% input$select_output,]
-    write.csv(final_output_main, "main_clusters.csv")
+    names(final_output_main) = c("strategies", "clusters")
+    final_output_main$clusters = paste("main_cluster_", final_output_main$clusters)
+    write.csv(final_output_main, "main_clusters.csv", row.names = FALSE)
     final_output_main = read.csv('main_clusters.csv', stringsAsFactors = FALSE)
     
     # Outputing the strategies in subclusters  
@@ -334,32 +400,61 @@ server <- function(input, output, session){
       
       if(0 %in% input$select_output_sub){
         final_full_cluster = final[final$clusters == c_select,]
-        write.csv(final_full_cluster, "full_cluster.csv")
+        names(final_full_cluster) = c("strategies", "clusters")
+        final_full_cluster$clusters = paste("main_cluster_", final_full_cluster$clusters)
+        write.csv(final_full_cluster, "full_cluster.csv", row.names = FALSE)
         final_full_cluster = read.csv('full_cluster.csv', stringsAsFactors = FALSE)
-     } else{
+     } else {
       final_output_sub = final_sub[final_sub$clusters %in% input$select_output_sub,]
-      write.csv(final_output_sub, "sub_clusters.csv")
+      names(final_output_sub) = c("strategies", "clusters")
+      final_output_sub$clusters = paste("sub_cluster_", final_output_sub$clusters)
+      write.csv(final_output_sub, "sub_clusters.csv", row.names = FALSE)
       final_output_sub = read.csv('sub_clusters.csv', stringsAsFactors = FALSE)
      }
     }
     
     # Appending the Strategies
     if (exists('final_full_cluster')){
-      dishun = append(final_output_main$X, final_full_cluster$X)
+      dishun = rbind(final_output_main, final_full_cluster)
     } else if (exists('final_output_sub')){
-      dishun = append(final_output_main$X, final_output_sub$X)
+      dishun = rbind(final_output_main, final_output_sub)
     } else {
-      dishun = final_output_main$X
+      dishun = final_output_main
     }
     
-    write.csv(dishun, file = 'dishun.csv')
-    data = mtcars
+    write.csv(dishun, file = 'dishun.csv', row.names = FALSE)
+    
+    df1 = read.csv('data_file.csv', stringsAsFactors = FALSE)
+    df2 = read.csv('dishun.csv', stringsAsFactors = FALSE)
+    
+    # Preparation to create the graph 
+    df = df1 %>% select(df2$strategies)
+    t_df = as.data.frame(t(df))
+    colnames(t_df) = df1[, 1]
+    
+    MtoM = t_df %>% summarise_all(.funs = sum)
+    cumsum = as.data.frame(apply(MtoM, 1, cumsum))
+    max_cum = as.data.frame(apply(cumsum, 2, cummax))
+    dd = (max_cum[1] - cumsum[1]) * -1
+    lower_band = create_lowerband_final(cumsum, max_cum, dd)
+    
     updateTabsetPanel(session, selected= 'output_tab_panel', inputId= 'main_tabset')
     
     output$download_cluster = downloadHandler(filename = function(){ paste('cluster_data', '.csv', sep='')},  
                                               content = function(file) {write.csv(dishun, file)})
+    
+    output$final_output_graph = renderPlotly({
+      single_cluster_graph_final(MtoM, cumsum, max_cum, lower_band, dd)
+     })
+    
+    output$seperate_equity_graph = renderPlotly({
+      output_seperate_graph(df2, df1)
+    })
+    
+   })
   })
  })
+ 
 }
 #  
 # Create Shiny app ----

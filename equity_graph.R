@@ -23,7 +23,6 @@ main_equity_graph <- function(df){
 }
 
 # Single Equity Graph 
-
 single_cluster_graph = function(MtoM, cumsum, max_cum, lower_band, dd, n){
   p <- plot_ly() 
   p <- add_trace(p = p, data = MtoM, x = c(1:(nrow(cumsum))), y = ~as.numeric(MtoM[n,-1]),
@@ -87,4 +86,50 @@ sub_main_equity_graph <- function(cumsum_main, cumsum_sub, n){
   return(p)
 }
 
+# Output graph 
+single_cluster_graph_final = function(MtoM, cumsum, max_cum, lower_band, dd){
+  p <- plot_ly() 
+  p <- add_trace(p = p, data = MtoM, x = c(1:(nrow(cumsum))), y = ~as.numeric(MtoM),
+                 type = 'bar', name = 'MtoM')
+  
+  p <- add_trace(p = p, data = cumsum, x = c(1:nrow(cumsum)), y = ~cumsum[[1]],
+                 type='scatter', mode = 'lines', name = 'Ecurve')
+  
+  p <- add_trace(p = p, data = max_cum, x = c(1:nrow(cumsum)), y = ~max_cum[[1]],
+                 type = 'scatter', mode = 'lines', name = 'Ecurve_High')
+  
+  p <- add_trace(p = p, data = lower_band, x = c(1:nrow(cumsum)), y = ~lower_band[[1]],
+                 type = 'scatter', mode = 'lines', name = 'Stop Limit',
+                 line = list(width = 3, dash = 'dash'))
+  
+  p <- add_trace(p = p, data = dd, x = c(1:nrow(cumsum)), y = ~dd[[1]],
+                 type = 'scatter', fill = 'tozeroy', mode = 'none', name = 'Drawdown',
+                 fillcolor = 'rgba(220, 220, 220, 0.9')
+  
+  return(p)
+}
 
+# Seperate equity graph final output
+output_seperate_graph <- function(df1, df2){
+  
+  p <- plot_ly()
+  
+  for (i in unique(df1$clusters)){
+    
+    x = df2$master_seq
+    filtered = df2[, df1[df1$clusters == i, 'strategies']]
+    summed = apply(filtered, MARGIN = 1, FUN = sum)
+    cum_summed = cumsum(summed)
+    
+    p <- add_trace(p,
+                   x = x,
+                   y = cum_summed,
+                   type = 'scatter',
+                   mode = 'lines',
+                   name = i)
+  }
+  
+  p <- p %>% layout(title='Equity Graph of the final output')
+  
+  return(p)
+}
